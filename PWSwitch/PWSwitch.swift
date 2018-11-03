@@ -386,14 +386,15 @@ open class PWSwitch: UIControl {
         let touchPoint = touches.first?.location(in: self)
         if (self.bounds.contains(touchPoint!)) {
             if (on) {
-                onToOffAnim()
+                onToOffAnim {
+                    self.sendActions(for: UIControl.Event.valueChanged)
+                }
             } else {
-                offToOnAnim()
+                offToOnAnim {
+                    self.sendActions(for: UIControl.Event.valueChanged)
+                }
             }
-            
             self.on = !self.on
-            
-            self.sendActions(for: UIControl.Event.valueChanged)
             
         } else {
             if (on) {
@@ -505,7 +506,8 @@ open class PWSwitch: UIControl {
         }
     }
     
-    fileprivate func onToOffAnim() {
+    fileprivate func onToOffAnim(completion:@escaping (()->Void)) {
+        CATransaction.begin()
         let bgBorderAnimation = CABasicAnimation(keyPath: "borderWidth")
         bgBorderAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.165, 0.84, 0.44, 1)
         bgBorderAnimation.fromValue = frame.height / 2
@@ -580,13 +582,16 @@ open class PWSwitch: UIControl {
         animThumbGroup.fillMode = CAMediaTimingFillMode.forwards
         animThumbGroup.isRemovedOnCompletion = false
         animThumbGroup.animations = [thumbBoundsAnimation, thumbPosAnimation, thumbBorderColorAnimation, thumbFillColorAnimation]
-        
+        CATransaction.setCompletionBlock {
+            completion()
+        }
         thumbLayer.removeAllAnimations()
         thumbLayer.add(animThumbGroup, forKey: "thumbAnimation")
+        CATransaction.commit()
     }
     
-    fileprivate func offToOnAnim() {
-        
+    fileprivate func offToOnAnim(completion:@escaping (()->Void)) {
+        CATransaction.begin()
         
         let bgBorderColorAnimation = CABasicAnimation(keyPath: "borderColor")
         bgBorderColorAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.165, 0.84, 0.44, 1)
@@ -650,13 +655,18 @@ open class PWSwitch: UIControl {
         animThumbGroup.isRemovedOnCompletion = false
         animThumbGroup.animations = [thumbBoundsAnimation, thumbPosAnimation, thumbBorderColorAnimation, thumbFillColorAnimation]
         
+        CATransaction.setCompletionBlock {
+            completion()
+        }
         thumbLayer.removeAllAnimations()
         thumbLayer.add(animThumbGroup, forKey: "thumbAnimation")
+        CATransaction.commit()
     }
     
     open func setOn(_ on: Bool, animated :Bool) {
+        backLayer.removeAllAnimations()
+        thumbLayer.removeAllAnimations()
         self.on = on
-        
         if (animated) {
             if (on) {
                 let bgBorderAnimation = CABasicAnimation(keyPath: "borderWidth")
@@ -669,12 +679,14 @@ open class PWSwitch: UIControl {
                 
                 backLayer.add(bgBorderAnimation, forKey: "bgAnimation")
                 
-                offToOnAnim()
+                offToOnAnim(){}
             } else {
-                onToOffAnim()
+                onToOffAnim(){}
             }
         } else {
             if (on) {
+                CATransaction.begin()
+                CATransaction.setValue(true, forKey: kCATransactionDisableActions)
                 if (shouldFillOnPush) {
                     backLayer.borderWidth = frame.height / 2
                 }
@@ -685,7 +697,10 @@ open class PWSwitch: UIControl {
                 thumbLayer.position = getThumbOnPos()
                 thumbLayer.borderColor = thumbOnBorderColor.cgColor
                 thumbLayer.backgroundColor = thumbOnFillColor.cgColor
+                CATransaction.commit()
             } else {
+                CATransaction.begin()
+                CATransaction.setValue(true, forKey: kCATransactionDisableActions)
                 if (shouldFillOnPush) {
                     backLayer.borderWidth = 1
                 }
@@ -696,12 +711,119 @@ open class PWSwitch: UIControl {
                 thumbLayer.position = getThumbOffPos()
                 thumbLayer.borderColor = thumbOffBorderColor.cgColor
                 thumbLayer.backgroundColor = thumbOffFillColor.cgColor
+                CATransaction.commit()
             }
         }
     }
     
     override open func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesCancelled(touches, with: event)
+        if (on) {
+            let thumbBoundsAnimation = CABasicAnimation(keyPath: "bounds")
+            thumbBoundsAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.175, 0.885, 0.32, 1.275)
+            thumbBoundsAnimation.fromValue = NSValue(cgRect: getThumbOffPushRect())
+            thumbBoundsAnimation.toValue = NSValue(cgRect: getThumbOffRect())
+            thumbBoundsAnimation.fillMode = CAMediaTimingFillMode.forwards
+            thumbBoundsAnimation.duration = 0.25
+            thumbBoundsAnimation.isRemovedOnCompletion = false
+            
+            let thumbPosAnimation = CABasicAnimation(keyPath: "position")
+            thumbPosAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.175, 0.885, 0.32, 1.275)
+            thumbPosAnimation.fromValue = NSValue(cgPoint: getThumbOnPushPos())
+            thumbPosAnimation.toValue = NSValue(cgPoint: getThumbOnPos())
+            thumbPosAnimation.fillMode = CAMediaTimingFillMode.forwards
+            thumbPosAnimation.duration = 0.25
+            thumbPosAnimation.isRemovedOnCompletion = false
+            
+            
+            let thumbBorderColorAnimation = CABasicAnimation(keyPath: "borderColor")
+            thumbBorderColorAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.165, 0.84, 0.44, 1)
+            thumbBorderColorAnimation.fromValue = thumbOnBorderColor.cgColor
+            thumbBorderColorAnimation.toValue = thumbOnBorderColor.cgColor
+            thumbBorderColorAnimation.fillMode = CAMediaTimingFillMode.forwards
+            thumbBorderColorAnimation.duration = 0.25
+            thumbBorderColorAnimation.isRemovedOnCompletion = false
+            
+            let thumbFillColorAnimation = CABasicAnimation(keyPath: "backgroundColor")
+            thumbFillColorAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.165, 0.84, 0.44, 1)
+            thumbFillColorAnimation.fromValue = thumbOnFillColor.cgColor
+            thumbFillColorAnimation.toValue = thumbOnFillColor.cgColor
+            thumbFillColorAnimation.fillMode = CAMediaTimingFillMode.forwards
+            thumbFillColorAnimation.duration = 0.25
+            thumbFillColorAnimation.isRemovedOnCompletion = false
+            
+            let animThumbGroup = CAAnimationGroup()
+            animThumbGroup.duration = 0.25
+            animThumbGroup.fillMode = CAMediaTimingFillMode.forwards
+            animThumbGroup.isRemovedOnCompletion = false
+            animThumbGroup.animations = [thumbBoundsAnimation, thumbPosAnimation, thumbBorderColorAnimation, thumbFillColorAnimation]
+            
+            thumbLayer.removeAllAnimations()
+            thumbLayer.add(animThumbGroup, forKey: "thumbAnimation")
+            
+        } else {
+            let bgBorderAnimation = CABasicAnimation(keyPath: "borderWidth")
+            bgBorderAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.165, 0.84, 0.44, 1)
+            bgBorderAnimation.fromValue = frame.height / 2
+            bgBorderAnimation.toValue = 1
+            bgBorderAnimation.fillMode = CAMediaTimingFillMode.forwards
+            bgBorderAnimation.duration = 0.25
+            bgBorderAnimation.isRemovedOnCompletion = false
+            
+            let bgBorderColorAnimation = CABasicAnimation(keyPath: "borderColor")
+            bgBorderColorAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.165, 0.84, 0.44, 1)
+            bgBorderColorAnimation.fromValue = trackOffPushBorderColor.cgColor
+            bgBorderColorAnimation.toValue = trackOffBorderColor.cgColor
+            bgBorderColorAnimation.fillMode = CAMediaTimingFillMode.forwards
+            bgBorderColorAnimation.duration = 0.25
+            bgBorderColorAnimation.isRemovedOnCompletion = false
+            
+            let animGroup = CAAnimationGroup()
+            animGroup.duration = 0.25
+            animGroup.fillMode = CAMediaTimingFillMode.forwards
+            animGroup.isRemovedOnCompletion = false
+            animGroup.animations = [bgBorderColorAnimation]
+            
+            if (shouldFillOnPush) {
+                animGroup.animations?.append(bgBorderAnimation)
+            }
+            
+            backLayer.removeAllAnimations()
+            backLayer.add(animGroup, forKey: "bgAnimation")
+            
+            let thumbBoundsAnimation = CABasicAnimation(keyPath: "bounds")
+            thumbBoundsAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.77, 0, 0.175, 1)
+            thumbBoundsAnimation.fromValue = NSValue(cgRect: getThumbOffPushRect())
+            thumbBoundsAnimation.toValue = NSValue(cgRect: getThumbOffRect())
+            thumbBoundsAnimation.fillMode = CAMediaTimingFillMode.forwards
+            thumbBoundsAnimation.duration = 0.25
+            thumbBoundsAnimation.isRemovedOnCompletion = false
+            
+            let thumbPosAnimation = CABasicAnimation(keyPath: "position")
+            thumbPosAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.77, 0, 0.175, 1)
+            thumbPosAnimation.fromValue = NSValue(cgPoint: getThumbOffPushPos())
+            thumbPosAnimation.toValue = NSValue(cgPoint: getThumbOffPos())
+            thumbPosAnimation.fillMode = CAMediaTimingFillMode.forwards
+            thumbPosAnimation.duration = 0.25
+            thumbPosAnimation.isRemovedOnCompletion = false
+            
+            let thumbBorderColorAnimation = CABasicAnimation(keyPath: "borderColor")
+            thumbBorderColorAnimation.timingFunction = CAMediaTimingFunction(controlPoints: 0.55, 0.055, 0.675, 0.19)
+            thumbBorderColorAnimation.fromValue = thumbOffPushBorderColor.cgColor
+            thumbBorderColorAnimation.toValue = thumbOffBorderColor.cgColor
+            thumbBorderColorAnimation.fillMode = CAMediaTimingFillMode.forwards
+            thumbBorderColorAnimation.duration = 0.25
+            thumbBorderColorAnimation.isRemovedOnCompletion = false
+            
+            let animThumbGroup = CAAnimationGroup()
+            animThumbGroup.duration = 0.25
+            animThumbGroup.fillMode = CAMediaTimingFillMode.forwards
+            animThumbGroup.isRemovedOnCompletion = false
+            animThumbGroup.animations = [thumbBoundsAnimation, thumbPosAnimation, thumbBorderColorAnimation]
+            
+            thumbLayer.removeAllAnimations()
+            thumbLayer.add(animThumbGroup, forKey: "thumbAnimation")
+        }
     }
     
     //helper func
